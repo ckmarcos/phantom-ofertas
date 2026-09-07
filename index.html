@@ -227,7 +227,6 @@
             border-color: #663293;
         }
 
-        /* ===== CARROSSEL ===== */
         .pic {
             height: 220px;
             background: #0d0d11;
@@ -595,23 +594,39 @@
             return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         }
 
-        // ===== LOGO =====
-        function loadLogo() {
-            const src = localStorage.getItem('phantomLogo');
+        // ============================================
+        // ===== LOGO — CARREGA DO FIRESTORE =====
+        // ============================================
+
+        async function loadLogo() {
             const brand = document.getElementById('brand');
-            brand.innerHTML = src ?
-                `<img src="${esc(src)}" alt="Logo">` :
-                `<span class="fallback">PHANTOM</span>`;
+
+            try {
+                const doc = await db.collection('config').doc('site').get();
+
+                if (doc.exists && doc.data().logo) {
+                    brand.innerHTML = `<img src="${esc(doc.data().logo)}" alt="Logo" style="max-height:54px; max-width:190px; object-fit:contain;">`;
+                } else {
+                    brand.innerHTML = `<span class="fallback">PHANTOM</span>`;
+                }
+
+            } catch (error) {
+                console.error('Erro ao carregar logo:', error);
+                brand.innerHTML = `<span class="fallback">PHANTOM</span>`;
+            }
         }
 
-        // ===== CARREGAR PRODUTOS =====
+        // ============================================
+        // ===== PRODUTOS =====
+        // ============================================
+
         async function loadProducts() {
             const grid = document.getElementById('grid');
             grid.innerHTML = `
-                <div class="loading">
-                    <i class="fa-solid fa-spinner fa-spin"></i> Carregando produtos...
-                </div>
-            `;
+                    <div class="loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Carregando produtos...
+                    </div>
+                `;
 
             try {
                 const snapshot = await db.collection('produtos').orderBy('createdAt', 'desc').get();
@@ -626,15 +641,14 @@
             } catch (error) {
                 console.error('Erro ao carregar produtos:', error);
                 grid.innerHTML = `
-                    <div class="empty">
-                        <i class="fa-solid fa-circle-exclamation"></i>
-                        <p>Erro ao carregar produtos. Tente novamente.</p>
-                    </div>
-                `;
+                        <div class="empty">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <p>Erro ao carregar produtos. Tente novamente.</p>
+                        </div>
+                    `;
             }
         }
 
-        // ===== RENDERIZAÇÃO =====
         function render(filter = '') {
             const list = products.filter(p =>
                 p.name.toLowerCase().includes(filter.toLowerCase()) ||
@@ -645,57 +659,56 @@
 
             grid.innerHTML = list.length ?
                 list.map(p => {
-                    // Pega as imagens
                     const images = p.images || (p.image ? [p.image] : ['assets/img/phantom_logo.png']);
                     const hasMultiple = images.length > 1;
 
                     return `
-                    <article class="product">
-                        <div class="pic">
-                            ${hasMultiple ? `
-                                <div class="carousel" data-product="${esc(p.id)}">
-                                    <div class="carousel-slides">
-                                        ${images.map(img => `
-                                            <div class="carousel-slide">
-                                                <img src="${esc(img)}" alt="${esc(p.name)}">
+                            <article class="product">
+                                <div class="pic">
+                                    ${hasMultiple ? `
+                                        <div class="carousel" data-product="${esc(p.id)}">
+                                            <div class="carousel-slides">
+                                                ${images.map(img => `
+                                                    <div class="carousel-slide">
+                                                        <img src="${esc(img)}" alt="${esc(p.name)}">
+                                                    </div>
+                                                `).join('')}
                                             </div>
-                                        `).join('')}
+                                            <button class="carousel-btn carousel-prev">‹</button>
+                                            <button class="carousel-btn carousel-next">›</button>
+                                            <div class="carousel-dots">
+                                                ${images.map((_, i) => `
+                                                    <span class="carousel-dot ${i === 0 ? 'active' : ''}"></span>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <img src="${esc(images[0])}" alt="${esc(p.name)}">
+                                    `}
+                                    ${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}
+                                </div>
+                                <div class="info">
+                                    <div class="cat">${esc(p.category)}</div>
+                                    <div class="name">${esc(p.name)}</div>
+                                    <div>
+                                        ${p.oldPrice ? `<span class="old">${money(p.oldPrice)}</span>` : ''}
+                                        <span class="price">${money(p.price)}</span>
                                     </div>
-                                    <button class="carousel-btn carousel-prev">‹</button>
-                                    <button class="carousel-btn carousel-next">›</button>
-                                    <div class="carousel-dots">
-                                        ${images.map((_, i) => `
-                                            <span class="carousel-dot ${i === 0 ? 'active' : ''}"></span>
-                                        `).join('')}
+                                    ${p.rating ? `<div class="rating">★ ${Number(p.rating).toFixed(1)}</div>` : ''}
+                                    <div class="actions2">
+                                        <a class="btn green" href="${esc(p.link)}" target="_blank" rel="noopener noreferrer">
+                                            <i class="fa-solid fa-cart-shopping"></i> Ver oferta
+                                        </a>
+                                        <button class="share" onclick="shareP('${esc(p.id)}')">
+                                            <i class="fa-solid fa-share-nodes"></i>
+                                        </button>
                                     </div>
                                 </div>
-                            ` : `
-                                <img src="${esc(images[0])}" alt="${esc(p.name)}">
-                            `}
-                            ${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}
-                        </div>
-                        <div class="info">
-                            <div class="cat">${esc(p.category)}</div>
-                            <div class="name">${esc(p.name)}</div>
-                            <div>
-                                ${p.oldPrice ? `<span class="old">${money(p.oldPrice)}</span>` : ''}
-                                <span class="price">${money(p.price)}</span>
-                            </div>
-                            ${p.rating ? `<div class="rating">★ ${Number(p.rating).toFixed(1)}</div>` : ''}
-                            <div class="actions2">
-                                <a class="btn green" href="${esc(p.link)}" target="_blank" rel="noopener noreferrer">
-                                    <i class="fa-solid fa-cart-shopping"></i> Ver oferta
-                                </a>
-                                <button class="share" onclick="shareP('${esc(p.id)}')">
-                                    <i class="fa-solid fa-share-nodes"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </article>
-                `}).join('') :
+                            </article>
+                        `
+                }).join('') :
                 '<div class="empty">Nenhum produto encontrado.</div>';
 
-            // Inicializa carrosséis após renderizar
             setTimeout(() => initCarousels(), 100);
         }
 
@@ -741,7 +754,6 @@
                     });
                 });
 
-                // Auto-play (pausa ao passar o mouse)
                 let interval = setInterval(() => {
                     updateCarousel(currentIndex + 1);
                 }, 4000);
@@ -760,19 +772,19 @@
             const cats = [...new Set(products.map(p => p.category).filter(Boolean))];
             const container = document.getElementById('filters');
             container.innerHTML = `
-                <button class="chip active" onclick="filterCat('')">Todos</button>
-                ${cats.map(c => `
-                    <button class="chip" onclick="filterCat('${esc(c)}')">${esc(c)}</button>
-                `).join('')}
-            `;
+                    <button class="chip active" onclick="filterCat('')">Todos</button>
+                    ${cats.map(c => `
+                        <button class="chip" onclick="filterCat('${esc(c)}')">${esc(c)}</button>
+                    `).join('')}
+                `;
 
             document.getElementById('categoryBoxes').innerHTML = cats.map(c => `
-                <div class="box">
-                    <i class="fa-solid fa-tag"></i>
-                    <h3>${esc(c)}</h3>
-                    <p>${products.filter(p => p.category === c).length} produto(s)</p>
-                </div>
-            `).join('');
+                    <div class="box">
+                        <i class="fa-solid fa-tag"></i>
+                        <h3>${esc(c)}</h3>
+                        <p>${products.filter(p => p.category === c).length} produto(s)</p>
+                    </div>
+                `).join('');
         }
 
         function filterCat(c) {
@@ -808,7 +820,10 @@
         // ===== EVENTOS =====
         document.getElementById('search').oninput = e => render(e.target.value);
 
+        // ============================================
         // ===== INICIALIZAÇÃO =====
+        // ============================================
+
         loadLogo();
 
         firebase.firestore().enablePersistence()
